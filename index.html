@@ -170,9 +170,8 @@
 
 <script>
 // ============ CONFIGURAÇÃO ============
-// ⚠️ TROQUE PELA URL DA SUA IMPLANTAÇÃO DO APPS SCRIPT
-// Formato: https://script.google.com/macros/s/SEU_ID_AQUI/exec
-const API_URL = 'https://script.google.com/macros/s/AKfycbxIuJ_Gr_mOT16q_0H4d762FaFk7ssmbLmpYDU1kf-YYCdhgTWlavhWuvVeX_6P8yHp/exec';
+// ⚠️ TROQUE PELA URL DA SUA IMPLANTAÇÃO DO APPS SCRIPT (termina em /exec)
+const API_URL = 'https://script.google.com/macros/s/SEU_ID_AQUI/exec';
 
 // ============ ESTADO ============
 let html5QrCode = null;
@@ -202,7 +201,6 @@ async function apiCall(action, dados){
   const payload = Object.assign({ action: action }, dados || {});
   const resp = await fetch(API_URL, {
     method: 'POST',
-    // text/plain evita preflight CORS no Apps Script
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload),
     redirect: 'follow'
@@ -255,7 +253,17 @@ function liberarApp(){
   $('badgeSessao').textContent = '🔓 Liberado';
   $('badgeSessao').classList.remove('off');
   carregarLocais();
-  setTimeout(iniciarCamera, 300);
+
+  // Se veio de QR escaneado pela câmera nativa (?etiqueta=XXX), busca direto
+  const params = new URLSearchParams(window.location.search);
+  const etqInicial = params.get('etiqueta');
+  if(etqInicial){
+    // limpa a URL para não re-buscar ao recarregar
+    window.history.replaceState({}, '', window.location.pathname);
+    setTimeout(function(){ buscar(etqInicial.toUpperCase()); }, 300);
+  } else {
+    setTimeout(iniciarCamera, 300);
+  }
 }
 
 // ============ CÂMERA ============
@@ -294,8 +302,33 @@ function pararCamera(){
 
 function onScanSuccess(decodedText){
   if(aguardandoAcao) return;
-  const codigo = (decodedText || '').trim();
+  let codigo = (decodedText || '').trim();
   if(!codigo) return;
+
+  // Se o QR contiver uma URL (ex.: https://.../?etiqueta=SAU-000001),
+  // extrai apenas a etiqueta. Também aceita URL terminando em /SAU-000001.
+  if(codigo.indexOf('http') === 0){
+    try {
+      const url = new URL(codigo);
+      const etq = url.searchParams.get('etiqueta');
+      if(etq){
+        codigo = etq.trim();
+      } else {
+        const partes = url.pathname.split('/').filter(Boolean);
+        const ultimo = partes[partes.length - 1] || '';
+        if(/^[A-Za-z]{2,4}-\d+$/.test(ultimo)){
+          codigo = ultimo.toUpperCase();
+        } else {
+          toast('QR contém URL sem etiqueta. Reimprima o adesivo.', 'err');
+          return;
+        }
+      }
+    } catch(e) {
+      toast('QR inválido', 'err');
+      return;
+    }
+  }
+
   const agora = Date.now();
   if(codigo === ultimoCodigo && (agora - ultimoCodigoTs) < 2500) return;
   ultimoCodigo = codigo;
