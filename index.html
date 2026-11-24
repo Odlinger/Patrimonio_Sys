@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Conferência Patrimonial — Inventário</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --verde:#2e7d32; --verde-esc:#1b4d2a; --verde-cl:#edf3ed;
+    --vermelho:#b71c1c; --amarelo:#f57f17; --bg:#f0f2f7; --txt:#1f2d24; --suave:#5f6b63;
+  }
+  body{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; background:var(--bg); color:var(--txt); min-height:100vh; padding:10px; }
+  .app{ max-width:560px; margin:0 auto; }
+  .card{ background:#fff; border-radius:16px; padding:16px; margin-bottom:12px; box-shadow:0 3px 12px rgba(0,0,0,.06); }
+  .topo{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .topo h1{ font-size:1.05rem; color:var(--verde-esc); }
+  .topo small{ color:var(--suave); font-size:.72rem; display:block; }
+  .badge{ background:var(--verde-cl); color:var(--verde-esc); padding:4px 10px; border-radius:10px; font-size:.72rem; font-weight:700; }
+  .badge.off{ background:#fff3cd; color:#856404; }
+
+  #telaSenha{ text-align:center; padding:10px 0; }
+  .pin{ width:180px; padding:12px; font-size:24px; text-align:center; letter-spacing:10px; border:2px solid #ddd; border-radius:12px; }
+  .teclado{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; max-width:260px; margin:14px auto; }
+  .tecla{ background:#eef1f5; border:none; padding:14px; font-size:20px; font-weight:700; border-radius:10px; cursor:pointer; }
+  .tecla:active{ background:#dde2e8; transform:scale(.96); }
+  .tecla.clr{ background:#ffebee; color:var(--vermelho); }
+  .tecla.ok{ background:var(--verde); color:#fff; }
+  .btn{ border:none; border-radius:10px; padding:12px 18px; font-weight:700; font-size:.95rem; cursor:pointer; }
+  .btn-primary{ background:var(--verde); color:#fff; }
+  .btn-primary:active{ background:var(--verde-esc); }
+  .btn-warn{ background:var(--amarelo); color:#000; }
+  .btn-danger{ background:var(--vermelho); color:#fff; }
+  .btn-outline{ background:#fff; color:var(--verde-esc); border:1.5px solid var(--verde-cl); }
+  .btn:disabled{ opacity:.5; cursor:not-allowed; }
+
+  #reader{ width:100%; border-radius:14px; overflow:hidden; background:#000; min-height:240px; }
+  #reader video{ width:100% !important; height:auto !important; }
+  .scan-msg{ text-align:center; padding:10px; color:var(--suave); font-size:.85rem; }
+  .pulse{ animation:pulse 1.2s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:.6} 50%{opacity:1} }
+
+  .etq{ background:linear-gradient(135deg,var(--verde-esc),var(--verde)); color:#fff; padding:14px; border-radius:12px; text-align:center; margin-bottom:12px; }
+  .etq .cod{ font-size:1.6rem; font-weight:800; letter-spacing:2px; }
+  .etq .st{ display:inline-block; margin-top:6px; padding:4px 12px; border-radius:10px; font-size:.72rem; font-weight:700; background:rgba(255,255,255,.2); }
+  .campo{ background:#f8f9fa; border-left:3px solid var(--verde); border-radius:8px; padding:8px 10px; margin-bottom:8px; }
+  .campo .lbl{ font-size:.65rem; color:#999; text-transform:uppercase; letter-spacing:.5px; }
+  .campo .val{ font-size:.92rem; font-weight:600; word-break:break-word; }
+  .acoes{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+  .acoes .full{ grid-column:1/-1; }
+  .acoes button{ padding:13px; font-size:.88rem; }
+
+  .sessao{ margin-top:8px; }
+  .sessao h3{ font-size:.85rem; color:var(--suave); margin-bottom:8px; display:flex; justify-content:space-between; }
+  .sessao h3 span{ color:var(--verde); font-weight:700; }
+  .item-sessao{ display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:#f8f9fa; border-radius:8px; margin-bottom:6px; font-size:.82rem; gap:8px; }
+  .item-sessao .ok{ color:var(--verde); font-weight:700; }
+  .item-sessao .div{ color:var(--amarelo); font-weight:700; }
+  .item-sessao .nc{ color:var(--vermelho); font-weight:700; }
+
+  .toast{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#1f2d24; color:#fff; padding:12px 20px; border-radius:12px; font-size:.9rem; font-weight:600; z-index:9999; opacity:0; transition:opacity .3s; max-width:90%; text-align:center; }
+  .toast.show{ opacity:1; }
+  .toast.ok{ background:var(--verde); }
+  .toast.err{ background:var(--vermelho); }
+  .toast.warn{ background:var(--amarelo); color:#000; }
+
+  .hidden{ display:none !important; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="card">
+    <div class="topo">
+      <div>
+        <h1>🏛️ Conferência Patrimonial</h1>
+        <small>Prefeitura de Bom Jardim da Serra — Inventário</small>
+      </div>
+      <span class="badge off" id="badgeSessao">🔒 Bloqueado</span>
+    </div>
+  </div>
+
+  <div class="card" id="telaSenha">
+    <p style="text-align:center;color:var(--suave);font-size:.85rem;margin-bottom:14px;">Digite a senha PIN para liberar o scanner.</p>
+    <div style="text-align:center;">
+      <input type="password" id="senhaInput" class="pin" placeholder="••••••" maxlength="6" inputmode="numeric" autocomplete="off">
+    </div>
+    <div class="teclado">
+      <button class="tecla" onclick="digitar('1')">1</button>
+      <button class="tecla" onclick="digitar('2')">2</button>
+      <button class="tecla" onclick="digitar('3')">3</button>
+      <button class="tecla" onclick="digitar('4')">4</button>
+      <button class="tecla" onclick="digitar('5')">5</button>
+      <button class="tecla" onclick="digitar('6')">6</button>
+      <button class="tecla" onclick="digitar('7')">7</button>
+      <button class="tecla" onclick="digitar('8')">8</button>
+      <button class="tecla" onclick="digitar('9')">9</button>
+      <button class="tecla clr" onclick="apagar()">⌫</button>
+      <button class="tecla" onclick="digitar('0')">0</button>
+      <button class="tecla ok" onclick="validarSenha()">✓</button>
+    </div>
+    <div id="erroSenha" style="text-align:center;color:var(--vermelho);font-size:.8rem;min-height:18px;"></div>
+  </div>
+
+  <div id="appConferencia" class="hidden">
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <h2 style="font-size:.95rem;color:var(--verde-esc);">📷 Scanner contínuo</h2>
+      </div>
+      <div id="reader"></div>
+      <div class="scan-msg" id="scanMsg">Aponte para o QR Code do bem</div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-outline hidden" style="flex:1;" onclick="iniciarCamera()" id="btnIniciar">▶️ Iniciar câmera</button>
+        <button class="btn btn-outline hidden" style="flex:1;" onclick="pararCamera()" id="btnParar">⏹️ Parar câmera</button>
+        <button class="btn btn-outline" style="flex:1;" onclick="toggleManual()">⌨️ Digitar etiqueta</button>
+      </div>
+      <div id="manualBox" class="hidden" style="margin-top:10px;">
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="etiquetaManual" placeholder="Ex.: SAU-000001" autocomplete="off"
+                 style="flex:1;padding:12px;border:2px solid #ddd;border-radius:10px;font-size:.95rem;">
+          <button class="btn btn-primary" onclick="buscarManual()">Buscar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card hidden" id="cardBem">
+      <div class="etq">
+        <div class="cod" id="bemEtiqueta">—</div>
+        <div class="st" id="bemStatus">—</div>
+      </div>
+      <div class="campo"><div class="lbl">Descrição</div><div class="val" id="bemDesc">—</div></div>
+      <div class="campo"><div class="lbl">Secretaria</div><div class="val" id="bemSec">—</div></div>
+      <div class="campo"><div class="lbl">Localização atual</div><div class="val" id="bemLocal">—</div></div>
+      <div class="campo"><div class="lbl">Valor</div><div class="val" id="bemValor">—</div></div>
+
+      <div class="acoes">
+        <button class="btn btn-primary" onclick="conferir('OK')">✅ OK</button>
+        <button class="btn btn-warn" onclick="conferir('DIVERGENTE')">⚠️ Divergente</button>
+        <button class="btn btn-danger full" onclick="conferir('NAO_CONFERIDO')">❌ Não conferido</button>
+        <button class="btn btn-outline full" onclick="abrirMover()">📍 Mover de local</button>
+        <button class="btn btn-outline full" onclick="fecharBem()">↩️ Voltar ao scanner</button>
+      </div>
+    </div>
+
+    <div class="card sessao">
+      <h3>📋 Nesta sessão <span id="sessaoCount">0</span></h3>
+      <div id="sessaoLista"><div style="text-align:center;color:#999;font-size:.8rem;padding:8px;">Nenhum bem conferido ainda</div></div>
+      <button class="btn btn-outline" style="width:100%;margin-top:10px;" onclick="finalizarSessao()">🏁 Finalizar sessão</button>
+    </div>
+  </div>
+</div>
+
+<div id="modalMover" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:#fff;border-radius:16px;padding:18px;max-width:420px;width:100%;">
+    <h3 style="color:var(--verde-esc);font-size:1rem;margin-bottom:10px;">📍 Mover bem</h3>
+    <p style="font-size:.82rem;color:var(--suave);margin-bottom:6px;">Etiqueta: <b id="moverEtq">—</b></p>
+    <p style="font-size:.82rem;color:var(--suave);margin-bottom:12px;">Local atual: <b id="moverLocalAtual">—</b></p>
+    <label style="font-size:.75rem;color:var(--verde-esc);font-weight:700;">Novo local</label>
+    <select id="moverSelect" style="width:100%;padding:11px;border:2px solid #ddd;border-radius:10px;margin:6px 0 14px;font-size:.9rem;"></select>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-outline" style="flex:1;" onclick="fecharMover()">Cancelar</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="confirmarMover()">Mover</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============ CONFIGURAÇÃO ============
+// ⚠️ TROQUE PELA URL DA SUA IMPLANTAÇÃO DO APPS SCRIPT
+// Formato: https://script.google.com/macros/s/SEU_ID_AQUI/exec
+const API_URL = 'https://script.google.com/macros/s/AKfycbxIuJ_Gr_mOT16q_0H4d762FaFk7ssmbLmpYDU1kf-YYCdhgTWlavhWuvVeX_6P8yHp/exec';
+
+// ============ ESTADO ============
+let html5QrCode = null;
+let scannerRodando = false;
+let aguardandoAcao = false;
+let ultimoCodigo = '';
+let ultimoCodigoTs = 0;
+let bemAtual = null;
+let listaLocais = [];
+let sessao = [];
+let tentativasSenha = 0;
+
+const CHAVE_SESSAO = 'conf_sessao_bjs';
+
+// ============ UTIL ============
+function toast(msg, tipo){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (tipo||'');
+  clearTimeout(t._tm);
+  t._tm = setTimeout(function(){ t.className = 'toast ' + (tipo||''); }, 3000);
+}
+function $(id){ return document.getElementById(id); }
+
+// ============ API (fetch para Apps Script) ============
+async function apiCall(action, dados){
+  const payload = Object.assign({ action: action }, dados || {});
+  const resp = await fetch(API_URL, {
+    method: 'POST',
+    // text/plain evita preflight CORS no Apps Script
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload),
+    redirect: 'follow'
+  });
+  if(!resp.ok) throw new Error('HTTP ' + resp.status);
+  return resp.json();
+}
+
+// ============ SENHA ============
+function digitar(n){
+  const inp = $('senhaInput');
+  if(inp.value.length < 6) inp.value += n;
+}
+function apagar(){ const inp=$('senhaInput'); inp.value = inp.value.slice(0,-1); }
+
+async function validarSenha(){
+  const senha = $('senhaInput').value;
+  if(!senha){ $('erroSenha').textContent = '⚠️ Digite a senha'; return; }
+  $('erroSenha').textContent = 'Verificando...';
+  try {
+    const r = await apiCall('verificarSenhaConferencia', { senha: senha });
+    if(r && r.valida){
+      sessionStorage.setItem(CHAVE_SESSAO, '1');
+      liberarApp();
+    } else {
+      tentativasSenha++;
+      $('erroSenha').textContent = '❌ Senha incorreta';
+      $('senhaInput').value = '';
+      if(tentativasSenha >= 3){
+        $('erroSenha').textContent = '❌ Muitas tentativas. Aguarde 30s.';
+        document.querySelectorAll('.tecla, .btn').forEach(function(b){ b.disabled = true; });
+        setTimeout(function(){
+          document.querySelectorAll('.tecla, .btn').forEach(function(b){ b.disabled = false; });
+          tentativasSenha = 0;
+        }, 30000);
+      }
+    }
+  } catch(err){
+    $('erroSenha').textContent = '❌ Erro: ' + err.message;
+  }
+}
+
+$('senhaInput').addEventListener('keydown', function(e){
+  if(e.key === 'Enter') validarSenha();
+});
+
+function liberarApp(){
+  $('telaSenha').classList.add('hidden');
+  $('appConferencia').classList.remove('hidden');
+  $('badgeSessao').textContent = '🔓 Liberado';
+  $('badgeSessao').classList.remove('off');
+  carregarLocais();
+  setTimeout(iniciarCamera, 300);
+}
+
+// ============ CÂMERA ============
+function iniciarCamera(){
+  if(scannerRodando) return;
+  $('reader').innerHTML = '';
+  html5QrCode = new Html5Qrcode("reader");
+  const cfg = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
+  html5QrCode.start(
+    { facingMode: "environment" },
+    cfg,
+    onScanSuccess,
+    function(err){ /* ignora */ }
+  ).then(function(){
+    scannerRodando = true;
+    $('btnIniciar').classList.add('hidden');
+    $('btnParar').classList.remove('hidden');
+    $('scanMsg').textContent = 'Aponte para o QR Code do bem';
+    $('scanMsg').classList.add('pulse');
+  }).catch(function(err){
+    toast('Erro ao acessar câmera: ' + err, 'err');
+    $('btnIniciar').classList.remove('hidden');
+  });
+}
+
+function pararCamera(){
+  if(!scannerRodando || !html5QrCode) return;
+  html5QrCode.stop().then(function(){
+    scannerRodando = false;
+    $('btnIniciar').classList.remove('hidden');
+    $('btnParar').classList.add('hidden');
+    $('scanMsg').textContent = 'Câmera parada';
+    $('scanMsg').classList.remove('pulse');
+  }).catch(function(){});
+}
+
+function onScanSuccess(decodedText){
+  if(aguardandoAcao) return;
+  const codigo = (decodedText || '').trim();
+  if(!codigo) return;
+  const agora = Date.now();
+  if(codigo === ultimoCodigo && (agora - ultimoCodigoTs) < 2500) return;
+  ultimoCodigo = codigo;
+  ultimoCodigoTs = agora;
+  if(navigator.vibrate) navigator.vibrate(80);
+  $('scanMsg').textContent = '🔎 Buscando ' + codigo + '...';
+  buscar(codigo);
+}
+
+// ============ BUSCAR BEM ============
+async function buscar(etiqueta){
+  aguardandoAcao = true;
+  $('cardBem').classList.add('hidden');
+  try {
+    const bem = await apiCall('buscarBemConferencia', { etiqueta: etiqueta });
+    if(bem && bem.etiqueta){
+      bemAtual = bem;
+      mostrarBem(bem);
+    } else {
+      toast('Bem não encontrado: ' + etiqueta, 'err');
+      aguardandoAcao = false;
+      $('scanMsg').textContent = 'Aponte para o QR Code do bem';
+    }
+  } catch(err){
+    toast('Erro: ' + err.message, 'err');
+    aguardandoAcao = false;
+  }
+}
+
+function mostrarBem(bem){
+  $('bemEtiqueta').textContent = bem.etiqueta;
+  $('bemDesc').textContent = bem.descricao || 'Não cadastrada';
+  $('bemSec').textContent = bem.secretaria || 'Não informada';
+  $('bemLocal').textContent = bem.local || 'Não informado';
+  const v = parseFloat(bem.valor);
+  $('bemValor').textContent = (v > 0) ? 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits:2}) : 'Não informado';
+
+  let st = '⏳ Pendente';
+  if(bem.statusConferencia === 'OK') st = '✅ OK';
+  else if(bem.statusConferencia === 'DIVERGENTE') st = '⚠️ Divergente';
+  $('bemStatus').textContent = st;
+
+  $('cardBem').classList.remove('hidden');
+  $('scanMsg').textContent = 'Bem carregado — escolha uma ação';
+  $('scanMsg').classList.remove('pulse');
+  setTimeout(function(){
+    window.scrollTo({ top: $('cardBem').offsetTop - 80, behavior: 'smooth' });
+  }, 100);
+}
+
+function fecharBem(){
+  $('cardBem').classList.add('hidden');
+  bemAtual = null;
+  aguardandoAcao = false;
+  $('scanMsg').textContent = 'Aponte para o QR Code do bem';
+  $('scanMsg').classList.add('pulse');
+  ultimoCodigo = '';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============ CONFERIR ============
+async function conferir(status){
+  if(!bemAtual) return;
+  let localEncontrado = '';
+  if(status === 'DIVERGENTE'){
+    localEncontrado = prompt('Onde o bem foi encontrado?', '') || '';
+  }
+  const etiquetaAtual = bemAtual.etiqueta;
+  const descricaoAtual = bemAtual.descricao || '';
+  toast('Registrando...', 'warn');
+  try {
+    const r = await apiCall('salvarConferenciaDireto', {
+      etiqueta: etiquetaAtual,
+      status: status,
+      localEncontrado: localEncontrado,
+      responsavel: '',
+      observacao: status === 'DIVERGENTE' ? 'Bem encontrado em local divergente' : ''
+    });
+    if(r && r.success){
+      sessao.push({ etiqueta: etiquetaAtual, status: status, descricao: descricaoAtual });
+      renderSessao();
+      toast('✅ ' + etiquetaAtual + ' conferido', 'ok');
+      fecharBem();
+    } else {
+      toast('❌ ' + (r.message || 'Erro'), 'err');
+    }
+  } catch(err){
+    toast('❌ ' + err.message, 'err');
+  }
+}
+
+// ============ SESSÃO ============
+function renderSessao(){
+  $('sessaoCount').textContent = sessao.length;
+  const box = $('sessaoLista');
+  if(sessao.length === 0){
+    box.innerHTML = '<div style="text-align:center;color:#999;font-size:.8rem;padding:8px;">Nenhum bem conferido ainda</div>';
+    return;
+  }
+  box.innerHTML = sessao.slice().reverse().map(function(item){
+    let cls = 'ok', ico = '✅';
+    if(item.status === 'DIVERGENTE'){ cls='div'; ico='⚠️'; }
+    else if(item.status === 'NAO_CONFERIDO'){ cls='nc'; ico='❌'; }
+    return '<div class="item-sessao"><span><b>' + item.etiqueta + '</b> — ' + (item.descricao||'').substring(0,40) + '</span><span class="' + cls + '">' + ico + '</span></div>';
+  }).join('');
+}
+
+function finalizarSessao(){
+  if(sessao.length === 0){ toast('Nenhum bem na sessão', 'warn'); return; }
+  const resumo = sessao.map(function(i){ return i.etiqueta + ' — ' + i.status; }).join('\n');
+  if(confirm('Sessão com ' + sessao.length + ' bens.\n\n' + resumo + '\n\nDeseja finalizar e limpar a lista?')){
+    sessao = [];
+    renderSessao();
+    toast('Sessão finalizada', 'ok');
+  }
+}
+
+// ============ MANUAL ============
+function toggleManual(){
+  $('manualBox').classList.toggle('hidden');
+  if(!$('manualBox').classList.contains('hidden')){
+    $('etiquetaManual').focus();
+  }
+}
+function buscarManual(){
+  const v = $('etiquetaManual').value.trim();
+  if(!v){ toast('Digite uma etiqueta', 'warn'); return; }
+  $('etiquetaManual').value = '';
+  buscar(v.toUpperCase());
+}
+
+// ============ MOVER ============
+function abrirMover(){
+  if(!bemAtual) return;
+  $('moverEtq').textContent = bemAtual.etiqueta;
+  $('moverLocalAtual').textContent = bemAtual.local || 'Não informado';
+  const sel = $('moverSelect');
+  sel.innerHTML = '<option value="">Selecione...</option>' +
+    listaLocais.map(function(l){ return '<option value="' + l + '">' + l + '</option>'; }).join('');
+  $('modalMover').style.display = 'flex';
+}
+function fecharMover(){ $('modalMover').style.display = 'none'; }
+
+async function confirmarMover(){
+  const novo = $('moverSelect').value;
+  if(!novo){ toast('Selecione um local', 'warn'); return; }
+  toast('Movendo...', 'warn');
+  try {
+    const r = await apiCall('movimentarBemConferencia', {
+      etiqueta: bemAtual.etiqueta,
+      destino: bemAtual.secretaria,
+      novoLocal: novo,
+      responsavel: '',
+      observacao: 'Movimentação durante conferência. Local antigo: ' + (bemAtual.local || 'Não informado')
+    });
+    if(r && r.success){
+      toast('✅ Movido para ' + novo, 'ok');
+      fecharMover();
+      bemAtual.local = novo;
+      mostrarBem(bemAtual);
+    } else {
+      toast('❌ ' + (r.message || 'Erro'), 'err');
+    }
+  } catch(err){
+    toast('❌ ' + err.message, 'err');
+  }
+}
+
+// ============ LOCAIS ============
+async function carregarLocais(){
+  try {
+    const arr = await apiCall('buscarLocaisDaPlanilha', {});
+    listaLocais = arr || [];
+  } catch(err){
+    listaLocais = [];
+  }
+}
+
+// ============ AUTO-LOGIN NA ABA ============
+(function autoLogin(){
+  if(sessionStorage.getItem(CHAVE_SESSAO) === '1'){
+    liberarApp();
+  }
+})();
+
+window.addEventListener('beforeunload', function(){
+  try { if(html5QrCode && scannerRodando) html5QrCode.stop(); } catch(e){}
+});
+</script>
+</body>
+</html>
